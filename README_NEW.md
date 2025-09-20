@@ -1,15 +1,15 @@
-#  Système de Recommandation de Films - Approche Hybride
+# 🎬 Système de Recommandation de Films - Approche Hybride
 
-##  Description
+## 📖 Description
 
 Ce projet implémente un **système de recommandation de films intelligent** utilisant une approche hybride qui combine deux techniques principales :
 
 1. **Filtrage basé sur le contenu** : Analyse les caractéristiques des films (genres, synopsis, acteurs)
 2. **Filtrage collaboratif** : Apprend des préférences d'autres utilisateurs similaires
 
-##  Comment fonctionne l'approche hybride ?
+## 🧠 Comment fonctionne l'approche hybride ?
 
-###  Le Problème
+### 🎯 Le Problème
 Les systèmes de recommandation traditionnels ont des limitations :
 - **Contenu seul** : Ne connaît pas vos goûts personnels
 - **Collaboratif seul** : Problème du "démarrage à froid" (nouveaux utilisateurs)
@@ -33,19 +33,19 @@ Notre système combine intelligemment les deux approches :
 Score Final = (0.7 × Score Contenu) + (0.3 × Score Collaboratif)
 ```
 
-##  Architecture du Système
+## 🏗️ Architecture du Système
 
-###  Structure du Projet
+### 📁 Structure du Projet
 ```
- movie-recommender/
-├──  streamlit_app.py          # Interface utilisateur web
-├──  hybrid_recommender.py     # Cœur du système hybride
-├──  user_rating_system.py     # Gestion des notes utilisateurs
-├──  movie_recommender.py      # Recommandations par contenu
-├──  preprocess_movies.py      # Préparation des données
-├──  movies_dataset.json       # Base de données des films
-├──  user_ratings.db          # Base SQLite des notes
-└──  requirements.txt         # Dépendances Python
+📦 movie-recommender/
+├── 🎬 streamlit_app.py          # Interface utilisateur web
+├── 🤖 hybrid_recommender.py     # Cœur du système hybride
+├── ⭐ user_rating_system.py     # Gestion des notes utilisateurs
+├── 🎯 movie_recommender.py      # Recommandations par contenu
+├── 🔧 preprocess_movies.py      # Préparation des données
+├── 📊 movies_dataset.json       # Base de données des films
+├── 💾 user_ratings.db          # Base SQLite des notes
+└── 📋 requirements.txt         # Dépendances Python
 ```
 
 ### 🔧 Composants Principaux
@@ -131,20 +131,20 @@ Matrice_Utilisateurs_Films = U × Σ × V^T
 - Réduit la dimensionnalité des données
 - Découvre des "genres latents" non évidents
 
-##  Performance
+## 📊 Performance
 
 ### **Avantages de l'Approche Hybride**
--  **Précision améliorée** : Combine les forces des deux méthodes
--  **Résolution du démarrage à froid** : Recommandations immédiates via contenu
--  **Découverte de nouveaux films** : Grâce au filtrage collaboratif
--  **Apprentissage continu** : S'améliore avec chaque note
+- ✅ **Précision améliorée** : Combine les forces des deux méthodes
+- ✅ **Résolution du démarrage à froid** : Recommandations immédiates via contenu
+- ✅ **Découverte de nouveaux films** : Grâce au filtrage collaboratif
+- ✅ **Apprentissage continu** : S'améliore avec chaque note
 
 ### **Métriques**
 - **Score de confiance** : Affiché pour chaque recommandation
 - **Composantes détaillées** : Contribution contenu vs collaboratif
 - **Analyse des préférences** : Évolution de vos goûts par genre
 
-##  Technologies
+## 🛠️ Technologies
 
 - **Python 3.9+** : Langage principal
 - **Streamlit** : Interface web interactive
@@ -152,7 +152,7 @@ Matrice_Utilisateurs_Films = U × Σ × V^T
 - **Pandas/NumPy** : Manipulation des données
 - **SQLite** : Base de données des notes utilisateurs
 
-##  Contribution
+## 🤝 Contribution
 
 1. Fork du projet
 2. Créer une branche (`git checkout -b feature/AmazingFeature`)
@@ -160,9 +160,11 @@ Matrice_Utilisateurs_Films = U × Σ × V^T
 4. Push vers la branche (`git push origin feature/AmazingFeature`)
 5. Ouvrir une Pull Request
 
+## 📝 Licence
 
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
-## 👨 Auteur
+## 👨‍💻 Auteur
 
 **Amine Ouhiba** - [GitHub](https://github.com/amineouhiba26)
 
