@@ -1,237 +1,297 @@
+#!/usr/bin/env python3
+"""
+Application Streamlit avancée avec toutes les nouvelles fonctionnalités
+"""
+
 import streamlit as st
 import pandas as pd
-from movie_recommender import MovieRecommender
+import numpy as np
 import json
+import os
+from pathlib import Path
+import time
+import sqlite3
 
-# Page config
+# Configuration de la page
 st.set_page_config(
-    page_title="Movie Recommendation System",
+    page_title="Système de Recommandation de Films",
     page_icon="🎬",
     layout="wide"
 )
 
-# Initialize session state
-if 'recommender' not in st.session_state:
+@st.cache_data
+def load_movies():
+    """Charge le dataset de films"""
     try:
-        # Check if artifacts exist, if not run preprocessing
-        import os
-        if not os.path.exists("artifacts/similarity_matrix.npy"):
-            st.info("Setting up the recommendation system for first time use...")
-            with st.spinner("Running preprocessing... This may take a few minutes."):
+        with open('movies_dataset.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        st.error("Dataset non trouvé. Exécutez d'abord le preprocessing.")
+        return []
+
+@st.cache_resource
+def initialize_recommender():
+    """Initialise le système de recommandation"""
+    try:
+        # Vérifier si les artifacts existent
+        artifacts_path = Path('artifacts')
+        if not artifacts_path.exists() or not (artifacts_path / 'similarity_matrix.npy').exists():
+            st.info("Configuration initiale du système...")
+            with st.spinner("Preprocessing en cours..."):
                 from preprocess_movies import preprocess_movies
                 preprocess_movies(apply_svd=False)
-            st.success("Setup complete!")
+            st.success("Configuration terminée!")
         
-        st.session_state.recommender = MovieRecommender()
-    except FileNotFoundError:
-        st.error("Movie dataset not found. Please ensure movies_dataset.json exists.")
-        st.stop()
+        from movie_recommender import MovieRecommender
+        return MovieRecommender()
     except Exception as e:
-        st.error(f"Error initializing recommender: {e}")
+        st.error(f"Erreur initialisation du recommandeur: {e}")
+        return None
+
+@st.cache_resource
+def initialize_rating_system():
+    """Initialise le système de notation"""
+    try:
+        from user_rating_system import UserRatingSystem
+        return UserRatingSystem()
+    except Exception as e:
+        st.warning(f"Système de notation non disponible: {e}")
+        return None
+
+@st.cache_resource
+def initialize_hybrid_system(_content_recommender, _rating_system):
+    """Initialise le système hybride"""
+    if not _content_recommender or not _rating_system:
+        return None
+    try:
+        from hybrid_recommender import HybridRecommendationSystem
+        return HybridRecommendationSystem(_content_recommender, _rating_system)
+    except Exception as e:
+        st.warning(f"Système hybride non disponible: {e}")
+        return None
+
+def display_movie_card(movie, show_score=False):
+    """Affiche une carte de film"""
+    with st.container():
+        st.subheader(movie['title'])
+        
+        # Genres
+        if movie.get('genres'):
+            genre_text = " | ".join(movie['genres'])
+            st.caption(f"Genres: {genre_text}")
+        
+        # Note
+        if movie.get('vote_average'):
+            st.caption(f"Note: {movie['vote_average']}/10 ({movie.get('vote_count', 0)} votes)")
+        
+        # Description
+        if movie.get('overview'):
+            st.write(movie['overview'][:200] + "..." if len(movie['overview']) > 200 else movie['overview'])
+        
+        # Score de recommandation si disponible
+        if show_score and 'hybrid_score' in movie:
+            st.metric("Score de Recommandation", f"{movie['hybrid_score']:.3f}")
+            
+            with st.expander("Détails du score"):
+                st.write(f"**Contenu**: {movie.get('content_component', 0):.3f}")
+                st.write(f"**Collaboratif**: {movie.get('collaborative_component', 0):.3f}")
+
+def main():
+    """Application principale"""
+    st.title("Système de Recommandation de Films")
+    st.markdown("*Découvrez votre prochain film préféré avec l'IA*")
+    
+    # Initialisation des composants
+    movies = load_movies()
+    recommender = initialize_recommender()
+    rating_system = initialize_rating_system()
+    hybrid_system = initialize_hybrid_system(recommender, rating_system)
+    
+    if not movies:
         st.stop()
-
-recommender = st.session_state.recommender
-
-# Title and description
-st.title("🎬 Movie Recommendation System")
-st.markdown("Find your next favorite movie based on what you already love!")
-
-# Sidebar for navigation
-st.sidebar.title("Navigation")
-page = st.sidebar.selectbox(
-    "Choose a page:",
-    ["Search by Title", "Browse by Genre", "Random Discovery", "Dataset Stats"]
-)
-
-if page == "Search by Title":
-    st.header("🔍 Search by Movie Title")
     
-    # Search input
-    title_query = st.text_input("Enter a movie title:", placeholder="e.g., Interstellar, The Matrix")
-    num_recs = st.slider("Number of recommendations:", min_value=1, max_value=20, value=10)
+    # Sidebar pour la navigation
+    st.sidebar.title("Navigation")
+    page = st.sidebar.selectbox(
+        "Choisissez une page",
+        ["Recherche", "Recommandations Hybrides", "Mes Notes"]
+    )
     
-    if st.button("Get Recommendations") and title_query:
-        with st.spinner("Finding recommendations..."):
-            result = recommender.recommend_by_title(title_query, num_recs)
-            
-            if "error" in result:
-                st.error(result["error"])
-            else:
-                # Show matched movie
-                matched = result["matched_movie"]
-                st.success(f"Found: **{matched['title']}**")
-                
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    st.write(f"**Genres:** {', '.join(matched['genres'])}")
-                    st.write(f"**Overview:** {matched['overview']}")
-                
-                with col2:
-                    st.metric("Rating", f"{matched['vote_average']}/10")
-                    st.metric("Votes", matched['vote_count'])
-                
-                # Show other matches if any
-                if result["other_matches"]:
-                    with st.expander("Other possible matches"):
-                        for match in result["other_matches"]:
-                            st.write(f"- {match['title']} (Score: {match['score']:.2f})")
-                
-                # Show recommendations
-                st.subheader(f"🎯 Top {len(result['recommendations'])} Recommendations")
-                
-                for i, rec in enumerate(result["recommendations"], 1):
-                    with st.container():
-                        col1, col2, col3 = st.columns([3, 1, 1])
-                        
-                        with col1:
-                            st.write(f"**{i}. {rec['title']}**")
-                            st.write(f"Genres: {', '.join(rec['genres'])}")
-                            st.write(f"{rec['overview'][:150]}...")
-                        
-                        with col2:
-                            st.metric("Rating", f"{rec['vote_average']}/10")
-                        
-                        with col3:
-                            st.metric("Similarity", f"{rec['similarity_score']:.3f}")
-                        
-                        st.divider()
-
-elif page == "Browse by Genre":
-    st.header("🎭 Browse by Genre")
+    # Gestion des utilisateurs
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = 'user_demo'
     
-    # Get available genres
-    stats = recommender.get_stats()
-    available_genres = stats["unique_genres"]
+    user_id = st.sidebar.text_input("ID Utilisateur", value=st.session_state.user_id)
+    st.session_state.user_id = user_id
     
-    # Genre selection
-    selected_genre = st.selectbox("Select a genre:", available_genres)
-    num_movies = st.slider("Number of movies to show:", min_value=1, max_value=30, value=15)
-    
-    if st.button("Browse Movies"):
-        with st.spinner("Loading movies..."):
-            movies = recommender.search_by_genre(selected_genre, num_movies)
-            
-            if not movies:
-                st.warning(f"No movies found for genre '{selected_genre}'")
-            else:
-                st.subheader(f"🎬 Top {len(movies)} movies in '{selected_genre}' genre")
-                
-                # Display movies in a grid
-                cols = st.columns(2)
-                for i, movie in enumerate(movies):
-                    with cols[i % 2]:
-                        with st.container():
-                            st.write(f"**{i+1}. {movie['title']}**")
-                            
-                            col1, col2 = st.columns([2, 1])
-                            with col1:
-                                st.write(f"Genres: {', '.join(movie['genres'])}")
-                                st.write(f"Release: {movie['release_date']}")
-                            with col2:
-                                st.metric("Rating", f"{movie['vote_average']}/10")
-                            
-                            st.write(f"{movie['overview'][:120]}...")
-                            st.divider()
-
-elif page == "Random Discovery":
-    st.header("🎲 Random Movie Discovery")
-    st.write("Discover random movies from our collection!")
-    
-    num_random = st.slider("Number of random movies:", min_value=1, max_value=15, value=8)
-    
-    if st.button("Discover Movies"):
-        with st.spinner("Finding random movies..."):
-            movies = recommender.get_random_movies(num_random)
-            
-            st.subheader(f"🎬 {len(movies)} Random Movies")
-            
-            # Display in grid
-            cols = st.columns(2)
-            for i, movie in enumerate(movies):
-                with cols[i % 2]:
-                    with st.container():
-                        st.write(f"**{movie['title']}**")
-                        
-                        col1, col2 = st.columns([2, 1])
-                        with col1:
-                            st.write(f"Genres: {', '.join(movie['genres'])}")
-                            st.write(f"Release: {movie['release_date']}")
-                        with col2:
-                            st.metric("Rating", f"{movie['vote_average']}/10")
-                        
-                        st.write(f"{movie['overview'][:150]}...")
-                        
-                        # Add "Get Similar" button
-                        if st.button(f"Find Similar to {movie['title']}", key=f"similar_{movie['id']}"):
-                            similar_movies = recommender.recommend_by_movie_id(movie['id'], 5)
-                            st.write("**Similar movies:**")
-                            for sim in similar_movies[:3]:
-                                st.write(f"- {sim['title']} (Score: {sim['similarity_score']:.3f})")
-                        
-                        st.divider()
-
-elif page == "Dataset Stats":
-    st.header("📊 Dataset Statistics")
-    
-    stats = recommender.get_stats()
-    
-    # Main metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Movies", stats["total_movies"])
-    
-    with col2:
-        st.metric("Unique Genres", len(stats["unique_genres"]))
-    
-    with col3:
-        st.metric("Avg Rating", f"{stats['avg_rating']:.2f}/10")
-    
-    with col4:
-        st.metric("Feature Dimensions", stats["feature_dimensions"])
-    
-    # Genres breakdown
-    st.subheader("Available Genres")
-    genre_cols = st.columns(4)
-    for i, genre in enumerate(stats["unique_genres"]):
-        with genre_cols[i % 4]:
-            st.write(f"• {genre}")
-    
-    # Rating distribution
-    st.subheader("Movies by Rating Distribution")
-    df = recommender.df
-    
-    # Create rating bins
-    rating_bins = pd.cut(df['vote_average'], bins=[0, 3, 5, 7, 8, 10], labels=['Poor (0-3)', 'Fair (3-5)', 'Good (5-7)', 'Great (7-8)', 'Excellent (8-10)'])
-    rating_counts = rating_bins.value_counts()
-    
-    # Display as metrics
-    cols = st.columns(len(rating_counts))
-    for i, (rating, count) in enumerate(rating_counts.items()):
-        with cols[i]:
-            st.metric(rating, count)
-    
-    # Top rated movies
-    st.subheader("Top 10 Highest Rated Movies")
-    top_movies = df.nlargest(10, 'vote_average')[['title', 'vote_average', 'vote_count']].copy()
-    
-    for i, (_, movie) in enumerate(top_movies.iterrows(), 1):
-        col1, col2, col3 = st.columns([3, 1, 1])
+    # Page de recherche basique
+    if page == "Recherche":
+        st.header("Recherche de Films Similaires")
+        
+        # Interface de recherche
+        col1, col2 = st.columns([3, 1])
+        
         with col1:
-            st.write(f"{i}. **{movie['title']}**")
+            search_title = st.text_input("Titre du film", placeholder="Ex: Interstellar")
+        
         with col2:
-            st.write(f"{movie['vote_average']}/10")
-        with col3:
-            st.write(f"{movie['vote_count']} votes")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    """
-    **Movie Recommendation System** - Built with Streamlit
+            num_recs = st.slider("Nombre", 1, 20, 5)
+        
+        if search_title and recommender:
+            try:
+                recommendations = recommender.recommend_by_title(search_title, num_recs)
+                
+                if recommendations:
+                    st.success(f"Trouvé {len(recommendations)} recommandations pour '{search_title}'")
+                    
+                    for i, movie in enumerate(recommendations, 1):
+                        st.markdown(f"### {i}. {movie['title']}")
+                        display_movie_card(movie)
+                        st.divider()
+                else:
+                    st.warning("Aucune recommandation trouvée")
+                    
+            except Exception as e:
+                st.error(f"Erreur: {e}")
+        
+        # Recherche par genre
+        st.subheader("Recherche par Genre")
+        
+        # Extraire tous les genres disponibles
+        all_genres = set()
+        for movie in movies:
+            all_genres.update(movie.get('genres', []))
+        
+        selected_genre = st.selectbox("Choisissez un genre", sorted(all_genres))
+        
+        if selected_genre and recommender:
+            try:
+                genre_movies = recommender.search_by_genre(selected_genre, limit=num_recs)
+                
+                if genre_movies:
+                    st.success(f"Trouvé {len(genre_movies)} films {selected_genre}")
+                    
+                    for movie in genre_movies:
+                        display_movie_card(movie)
+                        st.divider()
+                        
+            except Exception as e:
+                st.error(f"Erreur recherche par genre: {e}")
     
-    This system uses content-based filtering with TF-IDF vectorization, 
-    genre encoding, and cosine similarity to find movies similar to your preferences.
-    """
-)
+    # Page de recommandations hybrides
+    elif page == "Recommandations Hybrides":
+        st.header("Recommandations Hybrides")
+        
+        if not hybrid_system:
+            st.warning("Système hybride non disponible. Veuillez noter quelques films d'abord.")
+            return
+        
+        # Afficher les préférences utilisateur
+        if rating_system:
+            user_prefs = rating_system.get_user_preferences(user_id)
+            
+            if user_prefs:
+                st.subheader("Vos Préférences")
+                
+                pref_df = pd.DataFrame([
+                    {
+                        'Genre': genre,
+                        'Note Moyenne': data['average_rating'],
+                        'Nombre de Films': data['count'],
+                        'Score de Préférence': data['preference_score']
+                    }
+                    for genre, data in list(user_prefs.items())[:5]
+                ])
+                
+                st.dataframe(pref_df, width="stretch")
+            
+            # Recommandations hybrides
+            st.subheader("Recommandations Personnalisées")
+            st.caption("Combinaison de filtrage par contenu et collaboratif")
+            
+            num_hybrid_recs = st.slider("Nombre de recommandations", 1, 20, 8)
+            
+            try:
+                hybrid_recs = hybrid_system.get_hybrid_recommendations(
+                    user_id, 
+                    num_recommendations=num_hybrid_recs
+                )
+                
+                if hybrid_recs:
+                    st.success(f"Recommandations personnalisées pour {user_id}")
+                    
+                    for i, movie in enumerate(hybrid_recs, 1):
+                        st.markdown(f"### {i}. Recommandation")
+                        display_movie_card(movie, show_score=True)
+                        st.divider()
+                else:
+                    st.info("Pas encore assez de données pour des recommandations personnalisées. Notez quelques films d'abord!")
+                    
+            except Exception as e:
+                st.error(f"Erreur recommandations hybrides: {e}")
+    
+    # Page de notation
+    elif page == "Mes Notes":
+        st.header("Mes Notes et Préférences")
+        
+        if not rating_system:
+            st.warning("Système de notation non disponible")
+            return
+        
+        # Interface de notation
+        st.subheader("Noter un Film")
+        
+        # Sélection de film
+        movie_titles = {movie['title']: movie['id'] for movie in movies}
+        selected_title = st.selectbox("Choisir un film à noter", list(movie_titles.keys()))
+        
+        if selected_title:
+            movie_id = movie_titles[selected_title]
+            
+            # Interface de notation
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                rating = st.slider("Note (0-10)", 0.0, 10.0, 5.0, 0.5)
+            
+            with col2:
+                if st.button("Sauvegarder Note"):
+                    if rating_system.add_rating(user_id, movie_id, rating):
+                        st.success(f"Note {rating}/10 sauvegardée pour '{selected_title}'")
+                        st.rerun()
+                    else:
+                        st.error("Erreur lors de la sauvegarde")
+        
+        # Afficher les notes existantes
+        user_ratings = rating_system.get_user_ratings(user_id)
+        
+        if user_ratings:
+            st.subheader("Vos Notes")
+            
+            # Créer un DataFrame des notes avec option de suppression
+            movies_dict = {movie['id']: movie for movie in movies}
+            
+            for movie_id, rating in user_ratings:
+                if movie_id in movies_dict:
+                    movie = movies_dict[movie_id]
+                    
+                    col1, col2 = st.columns([4, 1])
+                    
+                    with col1:
+                        st.write(f"**{movie['title']}** - {rating}/10")
+                        st.caption(f"Note TMDB: {movie.get('vote_average', 'N/A')}/10 | Genres: {' | '.join(movie.get('genres', []))}")
+                    
+                    with col2:
+                        if st.button("Supprimer", key=f"delete_{movie_id}"):
+                            if rating_system.delete_rating(user_id, movie_id):
+                                st.success("Note supprimée!")
+                                st.rerun()
+                            else:
+                                st.error("Erreur lors de la suppression")
+                    
+                    st.divider()
+        else:
+            st.info("Aucune note enregistrée. Commencez par noter quelques films!")
+
+if __name__ == "__main__":
+    main()
