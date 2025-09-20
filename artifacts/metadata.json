@@ -1,0 +1,27 @@
+{
+  "total_movies": 60,
+  "unique_genres": [
+    "Action",
+    "Adventure",
+    "Animation",
+    "Comedy",
+    "Crime",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "History",
+    "Horror",
+    "Music",
+    "Mystery",
+    "Romance",
+    "Science Fiction",
+    "Thriller",
+    "War"
+  ],
+  "feature_dimensions": 206,
+  "tfidf_features": 188,
+  "genre_features": 16,
+  "rating_features": 2,
+  "svd_applied": false,
+  "svd_components": null
+}
