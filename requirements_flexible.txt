@@ -1,0 +1,21 @@
+# Movie Recommendation System
+# Compatible with Python 3.9+ including 3.13
+
+# Core ML libraries - using flexible ranges for Python 3.13 compatibility
+pandas>=2.0.0,<2.3.0
+numpy>=1.24.0,<2.0.0
+scikit-learn>=1.3.0,<1.6.0
+
+# SciPy - using newer version that supports Python 3.13
+scipy>=1.11.0,<1.15.0
+
+# Web frameworks
+streamlit>=1.28.0,<1.35.0
+fastapi>=0.100.0,<0.115.0
+uvicorn>=0.20.0,<0.32.0
+
+# Utilities
+joblib>=1.3.0,<1.5.0
+
+# Additional dependencies for text processing
+difflib2  # For fuzzy string matching (built-in, but ensure compatibility)
